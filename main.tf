@@ -50,7 +50,7 @@ data "aws_ami" "amazon_linux" {
 }
 
 # -----------------------------
-# Security Group (PUBLIC IP OK for assignment)
+# Security Group
 # -----------------------------
 resource "aws_security_group" "web_sg" {
   name   = "clo835-sg"
@@ -64,7 +64,7 @@ resource "aws_security_group" "web_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH (public for demo)
+  # SSH
   ingress {
     from_port   = 22
     to_port     = 22
@@ -81,7 +81,7 @@ resource "aws_security_group" "web_sg" {
 }
 
 # -----------------------------
-# EC2 Instance (uses existing LabInstanceProfile)
+# EC2 Instance
 # -----------------------------
 resource "aws_instance" "ec2" {
   ami                         = data.aws_ami.amazon_linux.id
@@ -90,8 +90,6 @@ resource "aws_instance" "ec2" {
   vpc_security_group_ids      = [aws_security_group.web_sg.id]
   key_name                    = "vockey"
   associate_public_ip_address = true
-
-  # IMPORTANT: Use the pre-created lab instance profile (contains LabRole)
   iam_instance_profile = "LabInstanceProfile"
 
   tags = {
@@ -100,7 +98,7 @@ resource "aws_instance" "ec2" {
 }
 
 # -----------------------------
-# Outputs (VERY useful in demo)
+# Outputs
 # -----------------------------
 output "ec2_public_ip" {
   value = aws_instance.ec2.public_ip
