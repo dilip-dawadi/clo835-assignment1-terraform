@@ -180,6 +180,8 @@ resource "aws_instance" "ec2" {
   docker pull "$${WEBAPP_IMAGE}"
   
   section "Done"
+  echo "MYSQL_IMAGE=$${MYSQL_IMAGE}"
+  echo "WEBAPP_IMAGE=$${WEBAPP_IMAGE}"
   SCRIPT
   chmod +x /usr/local/bin/ecr-sync
 
