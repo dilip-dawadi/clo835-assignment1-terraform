@@ -104,21 +104,87 @@ resource "aws_instance" "ec2" {
 
   user_data_replace_on_change = true
   user_data                   = <<-EOF
-    #!/bin/bash
-    set -e
+  #!/bin/bash
+  set -e
+  
+  log() {
+    echo
+    echo "============================================================"
+    echo "$1"
+    echo "============================================================"
+  }
+  
+  log "1) OS update + Docker install"
+  yum update -y
+  yum install -y docker
+  systemctl enable docker
+  systemctl start docker
+  usermod -aG docker ec2-user
+  
+  log "2) Create Docker network (if not exists)"
+  docker network create clo835-net >/dev/null 2>&1 || true
+  echo "Network ready: clo835-net"
+  
+  log "3) Write environment file: /etc/profile.d/clo835.sh"
+  cat >/etc/profile.d/clo835.sh <<PROFILE
+  # CLO835 environment variables
+  export REGION="${local.region}"
+  export ECR_REGISTRY="${local.ecr_registry}"
+  export MYSQL_ECR_URL="${local.mysql_ecr_url}"
+  export WEBAPP_ECR_URL="${local.webapp_ecr_url}"
+  
+  # Print a message ONLY when sourced in an interactive shell
+  case "\$-" in
+    *i*)
+      echo "[clo835] Environment loaded ✅"
+      echo "  REGION=\$REGION"
+      echo "  ECR_REGISTRY=\$ECR_REGISTRY"
+      echo "  MYSQL_ECR_URL=\$MYSQL_ECR_URL"
+      echo "  WEBAPP_ECR_URL=\$WEBAPP_ECR_URL"
+      ;;
+  esac
+  PROFILE
+  chmod 644 /etc/profile.d/clo835.sh
+  
+  log "4) Create helper command: /usr/local/bin/ecr-sync"
+  cat >/usr/local/bin/ecr-sync <<'SCRIPT'
+  #!/bin/bash
+  set -e
+  
+  section() {
+    echo
+    echo "-------------------- $1 --------------------"
+  }
+  
+  # Load env vars
+  [ -f /etc/profile.d/clo835.sh ] && source /etc/profile.d/clo835.sh
+  
+  : "$${REGION:?REGION not set}"
+  : "$${ECR_REGISTRY:?ECR_REGISTRY not set}"
+  : "$${MYSQL_ECR_URL:?MYSQL_ECR_URL not set}"
+  : "$${WEBAPP_ECR_URL:?WEBAPP_ECR_URL not set}"
+  
+  MYSQL_IMAGE="$${MYSQL_ECR_URL}:latest"
+  WEBAPP_IMAGE="$${WEBAPP_ECR_URL}:latest"
+  
+  section "Logging in to ECR"
+  aws ecr get-login-password --region "$${REGION}" \
+    | docker login --username AWS --password-stdin "$${ECR_REGISTRY}"
+  echo "✅ Logged in to: $${ECR_REGISTRY}"
+  
+  section "Pulling images"
+  echo "→ Pulling MySQL:  $${MYSQL_IMAGE}"
+  docker pull "$${MYSQL_IMAGE}"
+  echo
+  echo "→ Pulling WebApp: $${WEBAPP_IMAGE}"
+  docker pull "$${WEBAPP_IMAGE}"
+  
+  section "Done"
+  SCRIPT
+  chmod +x /usr/local/bin/ecr-sync
 
-    yum update -y
-    yum install -y docker
-    systemctl enable docker
-    systemctl start docker
-    usermod -aG docker ec2-user
-
-    REGION="${local.region}"
-    ECR_REGISTRY="${local.ecr_registry}"
-    MYSQL_ECR_URL="${local.aws_ecr_repository.mysql.repository_url}"
-    WEBAPP_ECR_URL="${local.aws_ecr_repository.webapp.repository_url}"
-
-    docker network create clo835-net || true
+  log "5) Completed userdata setup"
+  echo "Tip: run 'source /etc/profile.d/clo835.sh' then run 'ecr-sync'"
   EOF
 
   tags = {
