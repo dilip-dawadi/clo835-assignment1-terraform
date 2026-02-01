@@ -15,11 +15,13 @@ provider "aws" {
 # ECR Repositories
 # -----------------------------
 resource "aws_ecr_repository" "webapp" {
-  name = "clo835-webapp"
+  name         = "clo835-webapp"
+  force_delete = true
 }
 
 resource "aws_ecr_repository" "mysql" {
-  name = "clo835-mysql"
+  name         = "clo835-mysql"
+  force_delete = true
 }
 
 # -----------------------------
@@ -90,7 +92,7 @@ resource "aws_instance" "ec2" {
   vpc_security_group_ids      = [aws_security_group.web_sg.id]
   key_name                    = "vockey"
   associate_public_ip_address = true
-  iam_instance_profile = "LabInstanceProfile"
+  iam_instance_profile        = "LabInstanceProfile"
 
   tags = {
     Name = "clo835-ec2"
