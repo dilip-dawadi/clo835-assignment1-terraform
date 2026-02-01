@@ -31,7 +31,7 @@ locals {
   region         = "us-east-1"
   mysql_ecr_url  = aws_ecr_repository.mysql.repository_url
   webapp_ecr_url = aws_ecr_repository.webapp.repository_url
-  ecr_registry = split("/", aws_ecr_repository.mysql.repository_url)[0]
+  ecr_registry   = split("/", aws_ecr_repository.mysql.repository_url)[0]
 }
 
 # -----------------------------
@@ -103,7 +103,7 @@ resource "aws_instance" "ec2" {
   iam_instance_profile        = "LabInstanceProfile"
 
   user_data_replace_on_change = true
-  user_data = <<-EOF
+  user_data                   = <<-EOF
     #!/bin/bash
     set -e
 
@@ -114,12 +114,9 @@ resource "aws_instance" "ec2" {
     usermod -aG docker ec2-user
 
     REGION="${local.region}"
-
-    aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${local.ecr_registry}"
-
-    # Pull images
-    docker pull "${local.mysql_ecr_url}:latest"
-    docker pull "${local.webapp_ecr_url}:latest"
+    ECR_REGISTRY="${local.ecr_registry}"
+    MYSQL_ECR_URL="${local.aws_ecr_repository.mysql.repository_url}"
+    WEBAPP_ECR_URL="${local.aws_ecr_repository.webapp.repository_url}"
 
     docker network create clo835-net || true
   EOF
