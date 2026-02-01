@@ -25,6 +25,16 @@ resource "aws_ecr_repository" "mysql" {
 }
 
 # -----------------------------
+# Locals
+# -----------------------------
+locals {
+  region         = "us-east-1"
+  mysql_ecr_url  = aws_ecr_repository.mysql.repository_url
+  webapp_ecr_url = aws_ecr_repository.webapp.repository_url
+  ecr_registry = split("/", aws_ecr_repository.mysql.repository_url)[0]
+}
+
+# -----------------------------
 # Default VPC + Subnet
 # -----------------------------
 data "aws_vpc" "default" {
@@ -58,7 +68,6 @@ resource "aws_security_group" "web_sg" {
   name   = "clo835-sg"
   vpc_id = data.aws_vpc.default.id
 
-  # App ports
   ingress {
     from_port   = 8081
     to_port     = 8083
@@ -66,7 +75,6 @@ resource "aws_security_group" "web_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # SSH
   ingress {
     from_port   = 22
     to_port     = 22
@@ -93,6 +101,28 @@ resource "aws_instance" "ec2" {
   key_name                    = "vockey"
   associate_public_ip_address = true
   iam_instance_profile        = "LabInstanceProfile"
+
+  user_data_replace_on_change = true
+  user_data = <<-EOF
+    #!/bin/bash
+    set -e
+
+    yum update -y
+    yum install -y docker
+    systemctl enable docker
+    systemctl start docker
+    usermod -aG docker ec2-user
+
+    REGION="${local.region}"
+
+    aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "${local.ecr_registry}"
+
+    # Pull images
+    docker pull "${local.mysql_ecr_url}:latest"
+    docker pull "${local.webapp_ecr_url}:latest"
+
+    docker network create clo835-net || true
+  EOF
 
   tags = {
     Name = "clo835-ec2"
